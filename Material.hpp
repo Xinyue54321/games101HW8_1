@@ -7,11 +7,12 @@
 
 #include "Vector.hpp"
 
-enum MaterialType { DIFFUSE};
+enum MaterialType { DIFFUSE,MICROFACET};
 
 class Material{
 private:
-
+    
+    
     // Compute reflection direction
     Vector3f reflect(const Vector3f &I, const Vector3f &N) const
     {//计算反射方向
@@ -91,11 +92,13 @@ public:
     Vector3f m_emission;
     //发光
     float ior;
+    float roughness;
+    //粗糙程度
     Vector3f Kd, Ks;
     float specularExponent;
     //Texture tex;
 
-    inline Material(MaterialType t=DIFFUSE, Vector3f e=Vector3f(0,0,0));
+    inline Material(MaterialType t=DIFFUSE, Vector3f e=Vector3f(0,0,0), float a =0);
     inline MaterialType getType();//材质类型
     //inline Vector3f getColor();
     inline Vector3f getColorAt(double u, double v);//没写
@@ -109,12 +112,17 @@ public:
     // given a ray, calculate the contribution of this ray
     inline Vector3f eval(const Vector3f &wi, const Vector3f &wo, const Vector3f &N);
 
+    inline float DistributionGGX(const Vector3f N, const Vector3f H, const float a);
+    inline float GeometrySchlickGGX(const float NdotV, const float k);
+    inline float GeometrySmith(const Vector3f N, const Vector3f V, const Vector3f L, const float roughness);
 };
 
-Material::Material(MaterialType t, Vector3f e){
+Material::Material(MaterialType t, Vector3f e, float a) {
     m_type = t;
     //m_color = c;
     m_emission = e;
+    roughness = a;
+    ior = 1.6585;
 }
 
 MaterialType Material::getType(){return m_type;}
@@ -143,6 +151,17 @@ Vector3f Material::sample(const Vector3f &wi, const Vector3f &N){
             
             break;
         }
+        case MICROFACET:
+        {
+            // uniform sample on the hemisphere
+            float x_1 = get_random_float(), x_2 = get_random_float();
+            float z = std::fabs(1.0f - 2.0f * x_1);//(-1,1)生成一个随机的cos(theta)
+            float r = std::sqrt(1.0f - z * z), phi = 2 * M_PI * x_2;//计算sin(theta)，随机生成一个角度phi，theta和phi是三维极坐标系的两个角度
+            Vector3f localRay(r * std::cos(phi), r * std::sin(phi), z);//生成随机的方向
+            return toWorld(localRay, N);//转换为世界坐标系
+
+            break;
+        }
     }
 }
 
@@ -157,7 +176,47 @@ float Material::pdf(const Vector3f &wi, const Vector3f &wo, const Vector3f &N){/
                 return 0.0f;
             break;
         }
+        case MICROFACET:
+        {
+            if (dotProduct(wo, N) > 0.0f)
+                return 0.5f / M_PI;
+            else
+                return 0.0f;
+            break;
+        }
     }
+}
+
+float Material::DistributionGGX(const Vector3f N, const Vector3f H, const float a) {
+    float a2 = a * a;
+    float NdotH = std::max(dotProduct(N, H), 0.0f);
+    float NdotH2 = NdotH * NdotH;
+
+    float nom = a2;
+    float denom = (NdotH * (a2 - 1.0f) + 0.1f);
+    denom = M_PI * denom * denom;
+    
+    return nom / denom;
+}
+
+float Material::GeometrySchlickGGX(const float NdotV, const float k)
+{
+    float nom = NdotV;
+    float denom = NdotV * (1.0f - k) + k;
+
+    return nom / denom;
+}
+
+float Material::GeometrySmith(const Vector3f N, const Vector3f V, const Vector3f L, const float roughness)
+{
+    float r = roughness + 1;
+    float k = r * r / 8.0f;
+    float NdotV = std::max(dotProduct(N, V), 0.0f);
+    float NdotL = std::max(dotProduct(N, L), 0.0f);
+    float ggx1 = GeometrySchlickGGX(NdotV, k);
+    float ggx2 = GeometrySchlickGGX(NdotL, k);
+
+    return ggx1 * ggx2;
 }
 
 Vector3f Material::eval(const Vector3f &wi, const Vector3f &wo, const Vector3f &N){//计算BRDF
@@ -172,6 +231,32 @@ Vector3f Material::eval(const Vector3f &wi, const Vector3f &wo, const Vector3f &
             }
             else
                 return Vector3f(0.0f);
+            break;
+        }
+        case MICROFACET:
+        {
+            if (dotProduct(wo, N) > 0.0f) {
+                Vector3f h = (wo + wi).normalized();
+                float D = DistributionGGX(N, h, roughness);
+                float G = GeometrySmith(N, wo, wi, roughness);
+
+                Vector3f F0(0.45, 0.45, 0.45);
+                //fresnel(wi, N, ior, F);
+                Vector3f F = F0 + (Vector3f(1) - F0) * pow((1 - dotProduct(wi, h)), 5);
+                
+                
+                float fenmu= std::max(0.01f,(4 * dotProduct(N, wo) * dotProduct(N, wi)));
+                Vector3f specular = D * G * F / fenmu;
+
+                float _ks;
+                fresnel(wi, N, ior,_ks);
+                float _kd = 1.0f - _ks;
+                Vector3f diffuse = 1.0f / M_PI;
+                Vector3f BRDF = _ks * specular + Kd * _kd * diffuse;
+                return BRDF;
+            }
+            else
+                return 0.0f;
             break;
         }
     }

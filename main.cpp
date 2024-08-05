@@ -16,28 +16,34 @@ int main(int argc, char** argv)
     // Change the definition here to change resolution
     Scene scene(784, 784);
 
-    Material* red = new Material(DIFFUSE, Vector3f(0.0f));
+    Material* red = new Material(DIFFUSE, Vector3f(0.0f),0);
     red->Kd = Vector3f(0.63f, 0.065f, 0.05f);
-    Material* green = new Material(DIFFUSE, Vector3f(0.0f));
+    Material* green = new Material(DIFFUSE, Vector3f(0.0f),0);
     green->Kd = Vector3f(0.14f, 0.45f, 0.091f);
-    Material* white = new Material(DIFFUSE, Vector3f(0.0f));
+    Material* white = new Material(DIFFUSE, Vector3f(0.0f),0);
     white->Kd = Vector3f(0.725f, 0.71f, 0.68f);
-    Material* light = new Material(DIFFUSE, (8.0f * Vector3f(0.747f+0.058f, 0.747f+0.258f, 0.747f) + 15.6f * Vector3f(0.740f+0.287f,0.740f+0.160f,0.740f) + 18.4f *Vector3f(0.737f+0.642f,0.737f+0.159f,0.737f)));
+    Material* light = new Material(DIFFUSE, (8.0f * Vector3f(0.747f+0.058f, 0.747f+0.258f, 0.747f) + 15.6f * Vector3f(0.740f+0.287f,0.740f+0.160f,0.740f) + 18.4f *Vector3f(0.737f+0.642f,0.737f+0.159f,0.737f)),0);
     light->Kd = Vector3f(0.65f);
+    Material* microfacet = new Material(MICROFACET, Vector3f(0.0f), 0.5);
+    microfacet->Kd = Vector3f(0.725f, 0.71f, 0.68f);
+    microfacet->Ks = Vector3f(1.0f) - microfacet->Kd;
 
     MeshTriangle floor("./models/cornellbox/floor.obj", white);
-    MeshTriangle shortbox("./models/cornellbox/shortbox.obj", white);
+    MeshTriangle shortbox("./models/cornellbox/shortbox.obj", microfacet);
     MeshTriangle tallbox("./models/cornellbox/tallbox.obj", white);
     MeshTriangle left("./models/cornellbox/left.obj", red);
     MeshTriangle right("./models/cornellbox/right.obj", green);
     MeshTriangle light_("./models/cornellbox/light.obj", light);
-
+    Sphere* qiu1 = new Sphere(Vector3f(200, 250, 200), 50, microfacet);
+    Sphere* qiu2 = new Sphere(Vector3f(300, 100, 400), 100,microfacet);
     scene.Add(&floor);
-    scene.Add(&shortbox);
-    scene.Add(&tallbox);
+    //scene.Add(&shortbox);
+    //scene.Add(&tallbox);
     scene.Add(&left);
     scene.Add(&right);
     scene.Add(&light_);
+    //scene.Add(qiu1);
+    scene.Add(qiu2);
 
     scene.buildBVH();
 

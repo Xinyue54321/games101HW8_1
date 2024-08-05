@@ -66,7 +66,7 @@ Vector3f Scene::shade(Intersection p, const Ray &ray) const{
     Ray ws(p.coords, ws_dir);
     
     if ((x.coords - p.coords).norm() - this->intersect(ws).distance < 0.001) {
-        Vector3f BRDF = p.m->eval(  ray.direction, ws.direction, p.normal);
+        Vector3f BRDF = p.m->eval(ws.direction, -ray.direction, p.normal);
         float cosw1 = std::max(0.f, dotProduct(ws.direction, p.normal));
         float cosw2 = std::max(0.f, dotProduct(-ws.direction, x.normal));
         float distance2 = dotProduct((p.coords - x.coords), (p.coords - x.coords));
@@ -79,7 +79,7 @@ Vector3f Scene::shade(Intersection p, const Ray &ray) const{
         Ray wi(p.coords, wi_dir);
         Intersection q = this->intersect(wi);
         if (q.happened && !q.m->hasEmission()) {
-            Vector3f BRDF = p.m->eval( ray.direction, wi.direction, p.normal);
+            Vector3f BRDF = p.m->eval( wi.direction, -ray.direction, p.normal);
             float pdf_dif = p.m->pdf(ray.direction, wi.direction, p.normal);
             float cosw = dotProduct(wi.direction, p.normal);
             L_indir = shade(q, wi) * BRDF * cosw / pdf_dif / RussianRoulette;
